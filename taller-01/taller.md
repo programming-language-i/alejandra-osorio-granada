@@ -235,11 +235,22 @@ with ProcessPoolExecutor(max_workers=2) as pool:
 Para cada programa, elegir **hilos** o **procesos** y justificar en una línea *(¿espera o calcula?)*.
 
 1. Consultar el precio de 30 productos en 30 APIs distintas.
+R/: Hilos — Por que el programa pasa gran parte en espera de red.
+
 2. Contar las palabras palíndromas de 10 libros ya cargados en memoria.
+R/: Procesos — cálculo.
+
 3. Un servidor de chat que atiende 15 clientes conectados.
+R/: Hilos — espera de sockets/red.
+
 4. Aplicar un filtro de desenfoque a 200 fotos, píxel por píxel, en Python puro.
+R/: Procesos — cálculo intensivo.
+
 5. Leer 50 archivos de log del disco y copiarlos a otra carpeta.
+R/: Hilos — espera de disco.
+
 6. Simular 1.000.000 de lanzamientos de dados en 8 lotes y promediar.
+R/: Procesos — cálculo intensivo.
 
 ---
 
