@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arquitectura Cliente-Servidor</title>
+    <style>
+        /* ===== RESET Y VARIABLES ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primario: #2563eb;
+            --primario-oscuro: #1e40af;
+            --secundario: #10b981;
+            --acento: #f59e0b;
+            --fondo: #f8fafc;
+            --tarjeta: #ffffff;
+            --texto: #1e293b;
+            --texto-suave: #64748b;
+            --borde: #e2e8f0;
+            --sombra: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --sombra-grande: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--fondo);
+            color: var(--texto);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        header {
+            background: linear-gradient(135deg, var(--primario) 0%, var(--primario-oscuro) 100%);
+            color: white;
+            padding: 80px 20px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: rotar 20s linear infinite;
+        }
+
+        @keyframes rotar {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+            animation: aparecer 1s ease-out;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            animation: aparecer 1s ease-out 0.2s backwards;
+        }
+
+        @keyframes aparecer {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ===== NAVEGACIÓN ===== */
+        nav {
+            background: var(--tarjeta);
+            box-shadow: var(--sombra);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav ul {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            list-style: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        nav ul li a {
+            display: block;
+            padding: 18px 24px;
+            color: var(--texto);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        nav ul li a:hover {
+            color: var(--primario);
+            border-bottom-color: var(--primario);
+            background: #f1f5f9;
+        }
+
+        /* ===== CONTENEDOR PRINCIPAL ===== */
+        .contenedor {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        section {
+            margin-bottom: 80px;
+            scroll-margin-top: 80px;
+        }
+
+        section h2 {
+            font-size: 2.2rem;
+            color: var(--primario-oscuro);
+            margin-bottom: 20px;
+            position: relative;
+            padding-bottom: 15px;
+        }
+
+        section h2::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 70px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primario), var(--secundario));
+            border-radius: 2px;
+        }
+
+        section h3 {
+            font-size: 1.4rem;
+            color: var(--primario);
+            margin: 25px 0 12px;
+        }
+
+        section p {
+            color: var(--texto-suave);
+            margin-bottom: 15px;
+            font-size: 1.05rem;
+        }
+
+        /* ===== TARJETAS ===== */
+        .grid-tarjetas {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .tarjeta {
+            background: var(--tarjeta);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--sombra);
+            transition: all 0.3s;
+            border-top: 4px solid var(--primario);
+        }
+
+        .tarjeta:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--sombra-grande);
+        }
+
+        .tarjeta .icono {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .tarjeta h3 {
+            color: var(--primario-oscuro);
+            margin-bottom: 12px;
+            font-size: 1.3rem;
+        }
+
+        .tarjeta p {
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .tarjeta.verde {
+            border-top-color: var(--secundario);
+        }
+
+        .tarjeta.verde h3 {
+            color: #047857;
+        }
+
+        .tarjeta.naranja {
+            border-top-color: var(--acento);
+        }
+
+        .tarjeta.naranja h3 {
+            color: #b45309;
+        }
+
+        /* ===== DIAGRAMA INTERACTIVO ===== */
+        .diagrama {
+            background: var(--tarjeta);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: var(--sombra);
+            margin-top: 30px;
+        }
+
+        .diagrama-flex {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 30px;
+            position: relative;
+        }
+
+        .nodo {
+            text-align: center;
+            padding: 25px;
+            border-radius: 12px;
+            min-width: 180px;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            z-index: 2;
+        }
+
+        .nodo.cliente {
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            border: 2px solid var(--primario);
+        }
+
+        .nodo.servidor {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border: 2px solid var(--secundario);
+        }
+
+        .nodo:hover {
+            transform: scale(1.05);
+            box-shadow: var(--sombra-grande);
+        }
+
+        .nodo .emoji {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .nodo h4 {
+            color: var(--texto);
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .nodo small {
+            color: var(--texto-suave);
+            font-size: 0.85rem;
+        }
+
+        .flecha {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: var(--primario);
+            font-weight: bold;
+        }
+
+        .flecha .linea {
+            width: 100px;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primario), var(--secundario));
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .flecha .linea::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+            animation: brillo 2s infinite;
+        }
+
+        @keyframes brillo {
+            to {
+                left: 100%;
+            }
+        }
+
+        .flecha span {
+            font-size: 0.8rem;
+        }
+
+        /* ===== SIMULADOR ===== */
+        .simulador {
+            background: var(--tarjeta);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: var(--sombra);
+            margin-top: 30px;
+        }
+
+        .simulador-controles {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primario {
+            background: var(--primario);
+            color: white;
+        }
+
+        .btn-primario:hover {
+            background: var(--primario-oscuro);
+            transform: translateY(-2px);
+        }
+
+        .btn-secundario {
+            background: var(--secundario);
+            color: white;
+        }
+
+        .btn-secundario:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .consola {
+            background: #0f172a;
+            color: #10b981;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 250px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .consola .linea-log {
+            margin-bottom: 5px;
+            animation: aparecer 0.3s ease-out;
+        }
+
+        .consola .hora {
+            color: #64748b;
+            margin-right: 10px;
+        }
+
+        .consola .cliente-log {
+            color: #60a5fa;
+        }
+
+        .consola .servidor-log {
+            color: #34d399;
+        }
+
+        .consola .sistema-log {
+            color: #fbbf24;
+        }
+
+        /* ===== TABLA COMPARATIVA ===== */
+        .tabla-wrapper {
+            overflow-x: auto;
+            margin-top: 30px;
+            border-radius: 12px;
+            box-shadow: var(--sombra);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--tarjeta);
+            min-width: 600px;
+        }
+
+        table thead {
+            background: linear-gradient(135deg, var(--primario), var(--primario-oscuro));
+            color: white;
+        }
+
+        table th,
+        table td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--borde);
+        }
+
+        table th {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        table tbody tr:hover {
+            background: #f1f5f9;
+        }
+
+        table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ===== VENTAJAS / DESVENTAJAS ===== */
+        .dos-columnas {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .lista-card {
+            background: var(--tarjeta);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--sombra);
+        }
+
+        .lista-card h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.3rem;
+        }
+
+        .lista-card ul {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        .lista-card ul li {
+            padding: 10px 0 10px 30px;
+            position: relative;
+            color: var(--texto-suave);
+            border-bottom: 1px solid var(--borde);
+        }
+
+        .lista-card ul li:last-child {
+            border-bottom: none;
+        }
+
+        .lista-card.ventajas ul li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--secundario);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .lista-card.desventajas ul li::before {
+            content: '✗';
+            position: absolute;
+            left: 0;
+            color: #ef4444;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* ===== FOOTER ===== */
+        footer {
+            background: #0f172a;
+            color: #94a3b8;
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 60px;
+        }
+
+        footer p {
+            color: #94a3b8;
+            margin: 5px 0;
+        }
+
+        footer strong {
+            color: white;
+        }
+
+        /* ===== BOTÓN ARRIBA ===== */
+        .btn-arriba {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--primario);
+            color: white;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: var(--sombra-grande);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            z-index: 99;
+        }
+
+        .btn-arriba.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .btn-arriba:hover {
+            background: var(--primario-oscuro);
+            transform: translateY(-5px);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            header p {
+                font-size: 1rem;
+            }
+
+            section h2 {
+                font-size: 1.7rem;
+            }
+
+            .contenedor {
+                padding: 40px 15px;
+            }
+
+            .diagrama {
+                padding: 25px 15px;
+            }
+
+            .flecha .linea {
+                width: 60px;
+            }
+
+            .simulador {
+                padding: 25px 15px;
+            }
+
+            nav ul li a {
+                padding: 14px 16px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <header>
+        <h1>🖥️ Arquitectura Cliente-Servidor</h1>
+        <p>Descubre cómo se comunican los sistemas informáticos modernos: el modelo que sustenta la web, las apps y los
+            servicios en la nube.</p>
+    </header>
+
+    <!-- ===== NAVEGACIÓN ===== -->
+    <nav>
+        <ul>
+            <li><a href="#intro">Introducción</a></li>
+            <li><a href="#componentes">Componentes</a></li>
+            <li><a href="#diagrama">Diagrama</a></li>
+            <li><a href="#simulador">Simulador</a></li>
+            <li><a href="#tipos">Tipos</a></li>
+            <li><a href="#ventajas">Ventajas</a></li>
+        </ul>
+    </nav>
+
+    <!-- ===== CONTENIDO ===== -->
+    <div class="contenedor">
+
+        <!-- INTRODUCCIÓN -->
+        <section id="intro">
+            <h2>📖 ¿Qué es el modelo Cliente-Servidor?</h2>
+            <p>
+                El modelo <strong>cliente-servidor</strong> es una arquitectura de software en la que las tareas se
+                reparten entre
+                <strong>proveedores de recursos o servicios</strong> (servidores) y <strong>demandantes</strong>
+                (clientes).
+                Es la base de Internet, la World Wide Web, el correo electrónico, las bases de datos y prácticamente
+                cualquier
+                aplicación moderna en red.
+            </p>
+            <p>
+                En este modelo, el <strong>cliente</strong> inicia la comunicación solicitando un servicio, mientras que
+                el
+                <strong>servidor</strong> permanece a la escucha, procesa la petición y devuelve una respuesta. Esta
+                separación
+                de responsabilidades permite escalabilidad, mantenimiento centralizado y seguridad.
+            </p>
+        </section>
+
+        <!-- COMPONENTES -->
+        <section id="componentes">
+            <h2>🧩 Componentes principales</h2>
+            <div class="grid-tarjetas">
+                <div class="tarjeta">
+                    <span class="icono">💻</span>
+                    <h3>Cliente</h3>
+                    <p>Es el dispositivo o programa que <strong>solicita</strong> recursos. Puede ser un navegador, una
+                        app móvil, un videojuego o una terminal. Inicia la comunicación y espera la respuesta.</p>
+                </div>
+                <div class="tarjeta verde">
+                    <span class="icono">🗄️</span>
+                    <h3>Servidor</h3>
+                    <p>Es el sistema que <strong>provee</strong> recursos, datos o servicios. Escucha peticiones, las
+                        procesa y devuelve respuestas. Suele estar siempre activo y con alta disponibilidad.</p>
+                </div>
+                <div class="tarjeta naranja">
+                    <span class="icono">🔗</span>
+                    <h3>Protocolo</h3>
+                    <p>Conjunto de reglas que rigen la comunicación: <strong>HTTP/HTTPS</strong>, FTP, SMTP, TCP/IP,
+                        WebSocket, etc. Definen el formato de los mensajes y el orden de intercambio.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- DIAGRAMA -->
+        <section id="diagrama">
+            <h2>🔀 Diagrama de comunicación</h2>
+            <p>Haz clic sobre el cliente o el servidor para ver una descripción rápida de su rol.</p>
+            <div class="diagrama">
+                <div class="diagrama-flex">
+                    <div class="nodo cliente" onclick="mostrarInfo('cliente')">
+                        <span class="emoji">💻</span>
+                        <h4>Cliente</h4>
+                        <small>Navegador / App</small>
+                    </div>
+
+                    <div class="flecha">
+                        <span>1. Petición →</span>
+                        <div class="linea"></div>
+                        <span>← 2. Respuesta</span>
+                    </div>
+
+                    <div class="nodo servidor" onclick="mostrarInfo('servidor')">
+                        <span class="emoji">🖥️</span>
+                        <h4>Servidor</h4>
+                        <small>Web / Base de datos</small>
+                    </div>
+                </div>
+                <div id="info-nodo"
+                    style="margin-top:25px; padding:20px; background:#f1f5f9; border-radius:10px; text-align:center; color:#475569;">
+                    👆 Haz clic en un nodo para ver más información
+                </div>
+            </div>
+        </section>
+
+        <!-- SIMULADOR -->
+        <section id="simulador">
+            <h2>⚡ Simulador de peticiones</h2>
+            <p>Observa cómo viaja una petición desde el cliente hasta el servidor y vuelve la respuesta.</p>
+            <div class="simulador">
+                <div class="simulador-controles">
+                    <button class="btn btn-primario" onclick="simularPeticion('GET')">🌐 GET /index.html</button>
+                    <button class="btn btn-secundario" onclick="simularPeticion('POST')">📤 POST /login</button>
+                    <button class="btn btn-primario" onclick="simularPeticion('API')">🔌 GET /api/datos</button>
+                    <button class="btn" style="background:#ef4444;color:white;" onclick="limpiarConsola()">🗑️
+                        Limpiar</button>
+                </div>
+                <div class="consola" id="consola">
+                    <div class="linea-log sistema-log"><span class="hora">[sistema]</span> Consola lista. Presiona un
+                        botón para simular una petición...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TIPOS -->
+        <section id="tipos">
+            <h2>🏗️ Tipos de arquitecturas cliente-servidor</h2>
+            <div class="tabla-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Arquitectura</th>
+                            <th>Descripción</th>
+                            <th>Ejemplo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>2 capas</strong></td>
+                            <td>Cliente y servidor directamente conectados. Sencilla pero poco escalable.</td>
+                            <td>App de escritorio + base de datos</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3 capas</strong></td>
+                            <td>Cliente → Servidor de aplicación → Servidor de datos. Mejor separación.</td>
+                            <td>Aplicación web con API y BD</td>
+                        </tr>
+                        <tr>
+                            <td><strong>N capas</strong></td>
+                            <td>Múltiples niveles: presentación, lógica, negocio, persistencia, etc.</td>
+                            <td>Arquitecturas empresariales (microservicios)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>P2P</strong></td>
+                            <td>Cada nodo actúa como cliente y servidor a la vez.</td>
+                            <td>BitTorrent, blockchain</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- VENTAJAS Y DESVENTAJAS -->
+        <section id="ventajas">
+            <h2>⚖️ Ventajas y desventajas</h2>
+            <div class="dos-columnas">
+                <div class="lista-card ventajas">
+                    <h3>✅ Ventajas</h3>
+                    <ul>
+                        <li>Centralización de datos y recursos</li>
+                        <li>Mayor seguridad y control de accesos</li>
+                        <li>Escalabilidad horizontal y vertical</li>
+                        <li>Mantenimiento y actualizaciones centralizadas</li>
+                        <li>Reutilización de servicios por múltiples clientes</li>
+                        <li>Separación clara de responsabilidades</li>
+                    </ul>
+                </div>
+                <div class="lista-card desventajas">
+                    <h3>❌ Desventajas</h3>
+                    <ul>
+                        <li>El servidor es un punto único de fallo</li>
+                        <li>Cuellos de botella si hay muchas peticiones</li>
+                        <li>Costos de infraestructura y mantenimiento</li>
+                        <li>Dependencia de la red para funcionar</li>
+                        <li>Posibles problemas de latencia</li>
+                        <li>Complejidad en la sincronización de datos</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <footer>
+        <p><strong>Arquitectura Cliente-Servidor</strong> — Guía interactiva</p>
+        <p>Fundamentos de Sistemas Distribuidos · 2025</p>
+    </footer>
+
+    <!-- ===== BOTÓN ARRIBA ===== -->
+    <button class="btn-arriba" id="btnArriba" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+    <script>
+        /* ===== INFORMACIÓN DE NODOS ===== */
+        const infoNodos = {
+            cliente: {
+                titulo: '💻 Cliente',
+                texto: 'El cliente es quien <strong>inicia la petición</strong>. Envía una solicitud al servidor usando un protocolo (normalmente HTTP/HTTPS) y espera la respuesta. Ejemplos: navegadores, apps móviles, clientes de correo, videojuegos en línea.'
+            },
+            servidor: {
+                titulo: '🖥️ Servidor',
+                texto: 'El servidor está <strong>siempre a la escucha</strong>. Recibe peticiones, las procesa (consultas a base de datos, lógica de negocio, etc.) y devuelve una respuesta al cliente. Debe ser robusto, seguro y altamente disponible.'
+            }
+        };
+
+        function mostrarInfo(tipo) {
+            const info = infoNodos[tipo];
+            const contenedor = document.getElementById('info-nodo');
+            contenedor.innerHTML = <h3 style="color:#1e40af;margin-bottom:10px;">${info.titulo}</h3><p style="color:#475569;margin:0;">${info.texto}</p>;
+            contenedor.style.animation = 'none';
+            void contenedor.offsetWidth;
+            contenedor.style.animation = 'aparecer 0.4s ease-out';
+        }
+
+        /* ===== SIMULADOR ===== */
+        const consola = document.getElementById('consola');
+
+        function horaActual() {
+            return new Date().toLocaleTimeString('es-ES', { hour12: false });
+        }
+
+        function agregarLog(mensaje, tipo = 'sistema-log') {
+            const linea = document.createElement('div');
+            linea.className = linea-log ${tipo};
+            linea.innerHTML = <span class="hora">[${horaActual()}]</span> ${mensaje};
+            consola.appendChild(linea);
+            consola.scrollTop = consola.scrollHeight;
+        }
+
+        function limpiarConsola() {
+            consola.innerHTML = '<div class="linea-log sistema-log"><span class="hora">[sistema]</span> Consola reiniciada. Lista para nuevas peticiones...</div>';
+        }
+
+        function simularPeticion(tipo) {
+            const peticiones = {
+                'GET': {
+                    metodo: 'GET /index.html HTTP/1.1',
+                    host: 'www.ejemplo.com',
+                    respuesta: 'HTTP/1.1 200 OK — 4.2 KB',
+                    detalle: 'Archivo HTML entregado correctamente'
+                },
+                'POST': {
+                    metodo: 'POST /login HTTP/1.1',
+                    host: 'www.ejemplo.com',
+                    respuesta: 'HTTP/1.1 200 OK — Token JWT',
+                    detalle: 'Credenciales validadas, sesión iniciada'
+                },
+                'API': {
+                    metodo: 'GET /api/datos HTTP/1.1',
+                    host: 'api.ejemplo.com',
+                    respuesta: 'HTTP/1.1 200 OK — JSON (1.8 KB)',
+                    detalle: 'Datos JSON devueltos al cliente'
+                }
+            };
+
+            const p = peticiones[tipo];
+
+            // Cliente envía
+            agregarLog('🟦 <strong>CLIENTE</strong> → Preparando petición...', 'cliente-log');
+
+            setTimeout(() => {
+                agregarLog(🟦 <strong>CLIENTE</strong> → Enviando: <code>${p.metodo}</code>, 'cliente-log');
+            }, 400);
+
+            setTimeout(() => {
+                agregarLog(🌐 <strong>RED</strong> → Conexión TCP establecida con ${p.host}, 'sistema-log');
+            }, 900);
+
+            setTimeout(() => {
+                agregarLog('🟩 <strong>SERVIDOR</strong> ← Petición recibida', 'servidor-log');
+            }, 1400);
+
+            setTimeout(() => {
+                agregarLog('🟩 <strong>SERVIDOR</strong> → Procesando solicitud...', 'servidor-log');
+            }, 1900);
+
+            setTimeout(() => {
+                agregarLog(🟩 <strong>SERVIDOR</strong> → Respuesta: <code>${p.respuesta}</code>, 'servidor-log');
+            }, 2500);
+
+            setTimeout(() => {
+                agregarLog(🌐 <strong>RED</strong> → Datos viajando de vuelta al cliente..., 'sistema-log');
+            }, 3000);
+
+            setTimeout(() => {
+                agregarLog(🟦 <strong>CLIENTE</strong> ← Respuesta recibida: ${p.detalle} ✅, 'cliente-log');
+                agregarLog('─────────────────────────────────────', 'sistema-log');
+            }, 3600);
+        }
+
+        /* ===== BOTÓN ARRIBA ===== */
+        const btnArriba = document.getElementById('btnArriba');
+
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 400) {
+                btnArriba.classList.add('visible');
+            } else {
+                btnArriba.classList.remove('visible');
+            }
+        });
+
+        /* ===== SCROLL SUAVE ===== */
+        document.querySelectorAll('nav a').forEach(enlace => {
+            enlace.addEventListener('click', function (e) {
+                e.preventDefault();
+                const destino = document.querySelector(this.getAttribute('href'));
+                if (destino) {
+                    destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        /* ===== ANIMACIÓN DE APARICIÓN AL SCROLL ===== */
+        const observer = new IntersectionObserver((entradas) => {
+            entradas.forEach(entrada => {
+                if (entrada.isIntersecting) {
+                    entrada.target.style.animation = 'aparecer 0.6s ease-out';
+                    observer.unobserve(entrada.target);
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section').forEach(sec => {
+            observer.observe(sec);
+        });
+    </script>
+
+</body>
+
+</html>
