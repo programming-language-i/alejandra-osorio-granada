@@ -6,3 +6,4 @@ datos/*.jsonl
 datos/reporte*.txt
 prueba_*/
 volumen_*/
+datos/mensajes.log

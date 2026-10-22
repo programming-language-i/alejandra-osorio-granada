@@ -3,10 +3,10 @@ import argparse
 import json
 import socket
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
 
 from .bitacora import Bitacora
+from .conexion import crear_mensaje
 from .protocolo import enviar_mensaje, recibir_mensaje
 from .registro import CANALES, RegistroClientes, Sesion
 
@@ -39,6 +39,10 @@ class ServidorMensajeria:
     def __init__(self, bitacora: Bitacora) -> None:
         self.registro = RegistroClientes()
         self.bitacora = bitacora
+        self._detener = threading.Event()
+        self._lock_hilos = threading.Lock()
+        self._hilos: set[threading.Thread] = set()
+        self._conexiones: set[socket.socket] = set()
 
     def responder(self, sesion: Sesion, mensaje: dict[str, object]) -> None:
         sesion.enviar(json.dumps(mensaje, ensure_ascii=False))
@@ -51,23 +55,21 @@ class ServidorMensajeria:
         if tipo == "canales":
             self.responder(sesion, {"tipo": "canales", "canales": sorted(CANALES)})
             return
-        if tipo in ("unir", "salir"):
+        if tipo in ("unir", "salir", "unirse", "dejar"):
             canal = texto_valido(pedido.get("canal"), "canal", 20).lstrip("#")
-            canales = self.registro.cambiar_canal(sesion, canal, tipo == "unir")
+            canales = self.registro.cambiar_canal(sesion, canal, tipo in ("unir", "unirse"))
             self.responder(sesion, {"tipo": "canales", "canales": canales,
                                    "detalle": f"{tipo}: #{canal}"})
             return
         if tipo not in ("mensaje", "privado"):
             raise ValueError("Tipo de pedido desconocido")
         contenido = texto_valido(pedido.get("contenido"), "contenido", 4000)
-        mensaje: dict[str, object] = {
-            "tipo": tipo, "emisor": sesion.nombre, "contenido": contenido,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
+        canal_mensaje: str | None = None
+        destino_mensaje: str | None = None
         if tipo == "mensaje":
             canal = texto_valido(pedido.get("canal", "general"), "canal", 20).lstrip("#")
             destinos = self.registro.miembros(sesion, canal)
-            mensaje["canal"] = canal
+            canal_mensaje = canal
         else:
             destino = texto_valido(pedido.get("destino"), "destino", 40)
             if destino == sesion.nombre:
@@ -76,7 +78,8 @@ class ServidorMensajeria:
             if receptor is None:
                 raise ValueError("El destinatario no está conectado")
             destinos = [receptor]
-            mensaje["destino"] = destino
+            destino_mensaje = destino
+        mensaje = crear_mensaje(str(tipo), sesion.nombre, contenido, canal_mensaje, destino_mensaje)
         # Nada se entrega ni se confirma hasta terminar fsync.
         try:
             self.bitacora.guardar(mensaje)
@@ -86,7 +89,7 @@ class ServidorMensajeria:
         entregados = 0
         for receptor in destinos:
             try:
-                self.responder(receptor, mensaje)
+                self.responder(receptor, mensaje.a_dict())
                 entregados += 1
             except OSError:
                 receptor.cerrar()
@@ -139,6 +142,9 @@ class ServidorMensajeria:
                     self.registro.retirar(sesion)
                 sesion.cerrar()
             conexion.close()
+            with self._lock_hilos:
+                self._conexiones.discard(conexion)
+                self._hilos.discard(threading.current_thread())
 
     def recibir_actividad(self, udp: socket.socket, detener: threading.Event) -> None:
         while not detener.is_set():
@@ -158,24 +164,47 @@ class ServidorMensajeria:
             except (ValueError, RecursionError):
                 continue
 
+    def detener(self) -> None:
+        self._detener.set()
+
     def ejecutar(self, host: str, puerto: int, puerto_udp: int) -> None:
-        detener = threading.Event()
+        detener = self._detener
         with socket.socket() as tcp, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
             tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             tcp.bind((host, puerto))
             udp.bind((host, puerto_udp))
             udp.settimeout(0.5)
             tcp.listen()
+            tcp.settimeout(0.2)
             hilo_udp = threading.Thread(target=self.recibir_actividad, args=(udp, detener), daemon=True)
             hilo_udp.start()
             print(f"Servidor listo en {host}: TCP {puerto}, UDP {puerto_udp}", flush=True)
             try:
-                while True:
-                    conexion, direccion = tcp.accept()
-                    threading.Thread(target=self.atender, args=(conexion, direccion), daemon=True).start()
+                while not detener.is_set():
+                    try:
+                        conexion, direccion = tcp.accept()
+                    except socket.timeout:
+                        continue
+                    hilo = threading.Thread(target=self.atender, args=(conexion, direccion), daemon=True)
+                    with self._lock_hilos:
+                        self._hilos.add(hilo)
+                        self._conexiones.add(conexion)
+                    hilo.start()
             finally:
                 detener.set()
                 self.registro.cerrar_todas()
+                with self._lock_hilos:
+                    conexiones = tuple(self._conexiones)
+                    hilos = tuple(self._hilos)
+                for conexion in conexiones:
+                    try:
+                        conexion.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                for hilo in hilos:
+                    hilo.join()
+                # Primero terminan los productores; después centinela y join del escritor.
+                self.bitacora.cerrar()
                 hilo_udp.join(timeout=1)
 
 
@@ -185,7 +214,7 @@ def main() -> None:
     parser.add_argument("--udp", type=int, default=PUERTO_UDP)
     parser.add_argument("--host", default=HOST)
     parser.add_argument("--bitacora", type=Path,
-                        default=Path(__file__).resolve().parent.parent / "datos/bitacora.jsonl")
+                        default=Path(__file__).resolve().parent.parent / "datos/mensajes.log")
     args = parser.parse_args()
     try:
         ServidorMensajeria(Bitacora(args.bitacora)).ejecutar(args.host, args.puerto, args.udp)

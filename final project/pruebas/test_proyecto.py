@@ -220,12 +220,13 @@ class ProtocoloYReporte(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=RAIZ) as temporal:
             bitacora = Bitacora(Path(temporal) / "bitacora.jsonl")
             mensaje = {"tipo": "mensaje", "emisor": "Ana", "contenido": "pedido listo", "timestamp": "2026-10-15T15:00:00+00:00"}
-            with patch("mensajeria.bitacora.os.fsync", side_effect=[OSError("Disco lleno"), None]):
+            with patch("mensajeria.persistencia.os.fsync", side_effect=[OSError("Disco lleno"), None]):
                 with self.assertRaises(OSError):
                     bitacora.guardar(mensaje)
-            self.assertEqual(bitacora.ruta.read_bytes(), b"")
+            self.assertEqual(bitacora.ruta.read_bytes() if bitacora.ruta.exists() else b"", b"")
             bitacora.guardar(mensaje)
             self.assertEqual(generar(bitacora.ruta, io.StringIO()), 1)
+            bitacora.cerrar()
 
     def test_fallo_de_disco_no_entrega_ni_confirma(self):
         with tempfile.TemporaryDirectory(dir=RAIZ) as temporal:
@@ -244,7 +245,8 @@ class ProtocoloYReporte(unittest.TestCase):
             sesion, respuesta = responder.call_args.args
             self.assertIs(sesion, emisor)
             self.assertEqual(respuesta["tipo"], "error")
-            self.assertEqual(bitacora.ruta.read_bytes(), b"")
+            self.assertEqual(bitacora.ruta.read_bytes() if bitacora.ruta.exists() else b"", b"")
+            bitacora.cerrar()
 
     def test_framing_fragmentado_y_utf8(self):
         a, b = socket.socketpair()
@@ -268,6 +270,7 @@ class ProtocoloYReporte(unittest.TestCase):
             self.assertEqual(generar(ruta, salida), 1)
             self.assertIn("10:00: 1", salida.getvalue())
             self.assertIn("café: 1", salida.getvalue())
+            bitacora.cerrar()
 
 
 if __name__ == "__main__":

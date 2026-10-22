@@ -1,49 +1,71 @@
-"""Bitácora JSONL: un mensaje completo por línea, persistido antes de confirmar."""
+"""Fachada compatible: el cliente espera a que el escritor confirme fsync."""
 import json
-import os
+import queue
 import threading
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from .mensaje import Mensaje
+from .persistencia import escribir, se_guarda
+
+
+@dataclass
+class Solicitud:
+    mensaje: Mensaje
+    linea: str
+    lista: threading.Event = field(default_factory=threading.Event)
+    error: OSError | None = None
+
+
+def serializar_solicitud(solicitud: Solicitud) -> str:
+    return solicitud.linea
+
+
+def guardar_solicitud(solicitud: Solicitud) -> bool:
+    return se_guarda(solicitud.mensaje)
+
+
+def confirmar_solicitud(solicitud: Solicitud, error: OSError | None) -> None:
+    solicitud.error = error
+    solicitud.lista.set()
 
 
 class Bitacora:
     def __init__(self, ruta: Path) -> None:
         self.ruta = ruta
-        ruta.parent.mkdir(parents=True, exist_ok=True)
+        self._cola: queue.Queue[Solicitud | None] = queue.Queue(maxsize=128)
+        self._hilo: threading.Thread | None = None
         self._lock = threading.Lock()
-        self._fallida = False
-        # Una caída durante una escritura podría dejar una última línea parcial.
-        # Se preserva su contenido y se separa de los nuevos registros.
-        with ruta.open("a+b") as archivo:
-            if archivo.tell():
-                archivo.seek(-1, os.SEEK_END)
-                if archivo.read(1) != b"\n":
-                    archivo.seek(0, os.SEEK_END)
-                    archivo.write(b"\n")
-                    archivo.flush()
-                    os.fsync(archivo.fileno())
+        self._cerrada = False
 
-    def guardar(self, mensaje: dict[str, object]) -> None:
-        linea = (json.dumps(mensaje, ensure_ascii=False) + "\n").encode("utf-8")
+    def guardar(self, mensaje: Mensaje | dict[str, object]) -> None:
+        if isinstance(mensaje, dict):
+            convertido = Mensaje.desde_json(json.dumps(mensaje, ensure_ascii=False))
+            if convertido is None:
+                raise ValueError("Mensaje inválido")
+            mensaje = convertido
+        # Serialización pura antes de encolar; el timestamp ya viene fijado.
+        solicitud = Solicitud(mensaje, mensaje.a_json())
         with self._lock:
-            if self._fallida:
-                raise OSError("Bitácora bloqueada por un error de disco anterior")
-            # Sin buffer para poder deshacer incluso una escritura parcial.
-            with self.ruta.open("a+b", buffering=0) as archivo:
-                inicio = archivo.tell()
-                try:
-                    escritos = 0
-                    while escritos < len(linea):
-                        cantidad = archivo.write(linea[escritos:])
-                        if not cantidad:
-                            raise OSError("Escritura incompleta de la bitácora")
-                        escritos += cantidad
-                    archivo.flush()
-                    os.fsync(archivo.fileno())
-                except OSError:
-                    try:
-                        archivo.truncate(inicio)
-                        os.fsync(archivo.fileno())
-                    except OSError:
-                        # No concatenar futuros mensajes con una línea dañada.
-                        self._fallida = True
-                    raise
+            if self._cerrada:
+                raise OSError("Bitácora cerrada")
+            if self._hilo is None:
+                self._hilo = threading.Thread(target=escribir,
+                    args=(self._cola, self.ruta, serializar_solicitud,
+                          guardar_solicitud, confirmar_solicitud), daemon=False,
+                    name="escritor-bitacora")
+                self._hilo.start()
+            self._cola.put(solicitud)
+        solicitud.lista.wait()
+        if solicitud.error is not None:
+            raise solicitud.error
+
+    def cerrar(self) -> None:
+        with self._lock:
+            if not self._cerrada:
+                self._cerrada = True
+                if self._hilo is not None:
+                    self._cola.put(None)
+            hilo = self._hilo
+        if hilo is not None:
+            hilo.join()

@@ -1,76 +1,29 @@
 """Reporte exacto en una pasada: generadores y agregación SQLite en disco."""
 import argparse
-import json
 import re
 import sqlite3
 import tempfile
 from contextlib import closing
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Iterator, TextIO
 
-MAX_LINEA = 65536
+from .analisis.lectura import leer_mensajes
+from .mensaje import Mensaje
+
 PALABRAS = re.compile(r"[^\W\d_]+", re.UNICODE)
 
 
-@dataclass(frozen=True)
-class Mensaje:
-    emisor: str
-    contenido: str
-    fecha: datetime
-
-
-def normalizar(dato: object) -> Mensaje | None:
-    """Función pura: valida sin modificar la entrada ni acceder al disco."""
-    if not isinstance(dato, dict) or dato.get("tipo") not in ("mensaje", "privado"):
-        return None
-    emisor, contenido, fecha = dato.get("emisor"), dato.get("contenido"), dato.get("timestamp")
-    if not isinstance(emisor, str) or not isinstance(contenido, str) or not isinstance(fecha, str):
-        return None
-    if not emisor.strip() or not contenido.strip() or len(emisor) > 40 or len(contenido) > 4000:
-        return None
-    try:
-        emisor.encode("utf-8")
-        contenido.encode("utf-8")
-        instante = datetime.fromisoformat(fecha)
-        if instante.tzinfo is None:
-            return None
-        return Mensaje(emisor, contenido, instante)
-    except ValueError:
-        return None
-
-
-def leer_json(ruta: Path) -> Iterator[object]:
-    """Lee líneas acotadas y descarta entradas dañadas, sin cargar la bitácora."""
-    with ruta.open("rb") as archivo:
-        while True:
-            linea = archivo.readline(MAX_LINEA + 1)
-            if not linea:
-                return
-            if len(linea) > MAX_LINEA:
-                while not linea.endswith(b"\n"):
-                    linea = archivo.readline(MAX_LINEA + 1)
-                    if not linea:
-                        return
-                continue
-            try:
-                yield json.loads(linea.decode("utf-8"))
-            except (ValueError, RecursionError):
-                continue
-
-
 def mensajes(ruta: Path) -> Iterator[Mensaje]:
-    # map evalúa normalizar de manera perezosa, un registro a la vez.
-    for mensaje in map(normalizar, leer_json(ruta)):
-        if mensaje is not None:
-            yield mensaje
+    for registro in leer_mensajes(ruta):
+        if registro.timestamp.tzinfo is not None:
+            yield Mensaje(*registro)
 
 
 def claves(mensaje: Mensaje, zona: timezone) -> Iterator[tuple[str, str]]:
     """Transformación pura: autor, hora y palabras de un mensaje."""
     yield "autor", mensaje.emisor
-    yield "hora", f"{mensaje.fecha.astimezone(zona).hour:02d}"
+    yield "hora", f"{mensaje.timestamp.astimezone(zona).hour:02d}"
     for palabra in map(lambda coincidencia: coincidencia.group(0), PALABRAS.finditer(mensaje.contenido.casefold())):
         yield "palabra", palabra
 
@@ -112,7 +65,7 @@ def generar(ruta: Path, salida: TextIO, desfase: int = -5) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ruta", nargs="?", type=Path,
-                        default=Path(__file__).resolve().parent.parent / "datos/bitacora.jsonl")
+                        default=Path(__file__).resolve().parent.parent / "datos/mensajes.log")
     parser.add_argument("--salida", type=Path)
     parser.add_argument("--desfase", type=int, default=-5, help="Desfase UTC; por defecto Colombia (-5)")
     args = parser.parse_args()
